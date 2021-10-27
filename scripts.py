@@ -1,14 +1,15 @@
 from json import JSONDecodeError
-
 import requests
 from data import REGIONS, SPECIALITIES
 
+# That's the template of url / Шаблон url
 # URL_FORMAT = 'univerdata/?region=Миколаївська+область&city=Миколаїв&field=11+Математика+та+статистика&speciality='
 # If some param values are empty (speciality=) - we should process all key data
 # Если по ключу какое-то значение отстутствует (speciality=), подразумеваем,
 # что нужно обработать все значения по данному ключу
-# That's the template of url / Шаблон url
+
 EDUCATION_TYPES = {'Університет', 'Академія', 'Інститут'}
+
 
 def get_speciality_codes(field, speciality):
     '''Returns the list of speciality codes. If speciality and field are empty returns all codes'''
