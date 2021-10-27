@@ -22,7 +22,6 @@ def parse_specialities(region: Optional[str] = None,
             speciality = re.match("([0-9]+)", speciality).group(0)
 
     print(f"reg {region}, city {city}, field {field}, spec {speciality}")
-    print(type(field))
     try:
         response = main(region, city, field, speciality)
         return JSONResponse(response)
@@ -32,4 +31,3 @@ def parse_specialities(region: Optional[str] = None,
         return e
     except ValueError as e:
         return e
-
