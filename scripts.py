@@ -3,12 +3,12 @@ from json import JSONDecodeError
 import requests
 from data import REGIONS, SPECIALITIES
 
+# URL_FORMAT = 'univerdata/?region=Миколаївська+область&city=Миколаїв&field=11+Математика+та+статистика&speciality='
 # If some param values are empty (speciality=) - we should process all key data
 # Если по ключу какое-то значение отстутствует (speciality=), подразумеваем,
 # что нужно обработать все значения по данному ключу
 # That's the template of url / Шаблон url
-URL_FORMAT = 'univerdata/?region=Миколаївська+область&city=Миколаїв&field=11+Математика+та+статистика&speciality='
-
+EDUCATION_TYPES = {'Університет', 'Академія', 'Інститут'}
 
 def get_speciality_codes(field, speciality):
     '''Returns the list of speciality codes. If speciality and field are empty returns all codes'''
@@ -24,8 +24,9 @@ def get_universities_by_region(region_code, city):
     response = requests.get(f'https://registry.edbo.gov.ua/api/universities/?ut=1&lc={region_code}&exp=json')
     universities = response.json()
     if city:
-        return [uni['university_id'] for uni in universities if uni['koatuu_name'] == city]
-    return [uni['university_id'] for uni in universities]
+        return [uni['university_id'] for uni in universities if uni['koatuu_name'] == city and
+                uni['education_type_name'] in EDUCATION_TYPES]
+    return [uni['university_id'] for uni in universities if uni['education_type_name'] in EDUCATION_TYPES]
 
 
 def get_university_data(univer_id):
