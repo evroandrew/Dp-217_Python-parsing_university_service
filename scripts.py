@@ -10,14 +10,6 @@ from data import REGIONS, SPECIALITIES
 URL_FORMAT = 'univerdata/?region=Миколаївська+область&city=Миколаїв&field=11+Математика+та+статистика&speciality='
 
 
-def convert_to_right_form(parameter: str) -> str:
-    """ Replaces " " instead of "+"
-    example: Дніпропетровська+область --> Дніпропетровська область"""
-    if parameter is not None:
-        return " ".join(parameter.split("+"))
-    return None
-
-
 def get_speciality_codes(field, speciality):
     '''Returns the list of speciality codes. If speciality and field are empty returns all codes'''
     if speciality:

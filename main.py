@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from scripts import main, convert_to_right_form
+from scripts import main
 
 app = FastAPI(title="UniParser")
 
@@ -15,10 +15,7 @@ def parse_specialities(region: Optional[str] = None,
                        city: Optional[str] = None,
                        field: Optional[str] = None,
                        speciality: Optional[str] = None):
-    region = convert_to_right_form(region)
-    city = convert_to_right_form(city)
-    field = convert_to_right_form(field)
-    speciality = convert_to_right_form(speciality)
+
 
     if field:
         if re.match("([0-9]+)", field) is not None:
