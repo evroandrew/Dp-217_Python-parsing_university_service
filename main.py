@@ -1,10 +1,8 @@
 import re
 from json import JSONDecodeError
 from typing import Optional
-
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-
 from scripts import main
 
 app = FastAPI(title="UniParser")
@@ -16,17 +14,17 @@ def parse_specialities(region: Optional[str] = None,
                        field: Optional[str] = None,
                        speciality: Optional[str] = None):
 
-
     if field:
         if re.match("([0-9]+)", field) is not None:
-            field = re.match("([0-9]+)", field).group(0)
+            field = int(re.match("([0-9]+)", field).group(0))
     if speciality:
         if re.match("([0-9]+)", field) is not None:
             speciality = re.match("([0-9]+)", speciality).group(0)
 
     print(f"reg {region}, city {city}, field {field}, spec {speciality}")
+    print(type(field))
     try:
-        response = main(region, city, int(field), speciality)
+        response = main(region, city, field, speciality)
         return JSONResponse(response)
     except JSONDecodeError as e:
         # Check how to handle error in Django view comfortably
@@ -34,3 +32,4 @@ def parse_specialities(region: Optional[str] = None,
         return e
     except ValueError as e:
         return e
+
