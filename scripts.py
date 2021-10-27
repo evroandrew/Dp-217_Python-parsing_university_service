@@ -1,11 +1,21 @@
+from json import JSONDecodeError
+
 import requests
 from data import REGIONS, SPECIALITIES
 
-
-urlformat = 'univerdata/?region=Миколаївська+область&city=Миколаїв&field=11+Математика+та+статистика&speciality='
-
+# If some param values are empty (speciality=) - we should process all key data
 # Если по ключу какое-то значение отстутствует (speciality=), подразумеваем,
 # что нужно обработать все значения по данному ключу
+# That's the template of url / Шаблон url
+URL_FORMAT = 'univerdata/?region=Миколаївська+область&city=Миколаїв&field=11+Математика+та+статистика&speciality='
+
+
+def convert_to_right_form(parameter: str) -> str:
+    """ Replaces " " instead of "+"
+    example: Дніпропетровська+область --> Дніпропетровська область"""
+    if parameter is not None:
+        return " ".join(parameter.split("+"))
+    return None
 
 
 def get_speciality_codes(field, speciality):
@@ -56,24 +66,38 @@ def get_univer_info_by_speciality(univer, speciality):
             'specialities': get_speciality_info(univer, speciality)}
 
 
-def main():
-# Значения region, city, field, speciality берем из query string (пример url: переменная urlformat)
-    region = 'Одеська область'
-    city = 'Одеса'
-    field = '10'
-    speciality = ''
-
+def main(region: str = None, city: str = None, field: int = None, speciality: str = None) -> list:
+    # возвращает код региона, если нет - код всех регионов
+    # Contains region code or returns all region codes if param is empty
     region_codes = [REGIONS.get(region) if region else [region_code for region_code in REGIONS.values()]]
+
+    # возвразает ид всех универов, ссылаясь на код региона и город
+    # Contains all university IDs. Those IDs depends on region code and city
     univers_ids = [univer_id for code in region_codes for univer_id in get_universities_by_region(code, city)]
-    univers_data = [get_university_data(id) for id in univers_ids]
+
+    # Возвращает данные универов по их ид (univers_ids)
+    # contains university data
+    univers_data = []
+    for item in univers_ids:
+        try:
+            univers_data.append(get_university_data(item))
+        except JSONDecodeError:
+            continue
+
+    # Возвращает специальность, если есть специальность
+    # Возвращает список специальностей, если есть категория (field) и нет специальности
+    # Возвращает коды всех специальностей если не указано ничего
     speciality_codes = get_speciality_codes(field, speciality)
+
     response = []
     for speciality in speciality_codes:
         univers_with_speciality = filter(lambda univer: has_speciality(univer, speciality), univers_data)
         data = [get_univer_info_by_speciality(univer, speciality) for univer in univers_with_speciality]
         response.extend(data)
+
     return response
 
 
 if __name__ == '__main__':
-    print(main())
+    # Parser check
+    print(main('Одеська область', 'Одеса', 9))
