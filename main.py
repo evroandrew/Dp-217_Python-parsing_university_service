@@ -18,16 +18,12 @@ def parse_specialities(region: Optional[str] = None,
         if re.match("([0-9]+)", field) is not None:
             field = int(re.match("([0-9]+)", field).group(0))
     if speciality:
-        if re.match("([0-9]+)", field) is not None:
+        if re.match("([0-9]+)", speciality) is not None:
             speciality = re.match("([0-9]+)", speciality).group(0)
 
     print(f"reg {region}, city {city}, field {field}, spec {speciality}")
     try:
         response = main(region, city, field, speciality)
         return JSONResponse(response)
-    except JSONDecodeError as e:
-        # Check how to handle error in Django view comfortably
-        # HTTPException
-        return e
     except ValueError as e:
         return e
