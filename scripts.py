@@ -50,10 +50,13 @@ def get_speciality_info(univer, speciality_code):
 
 def get_univer_info_by_speciality(univer, speciality):
     '''Returns dictionary with info of the university which has provided speciality'''
-    return {'name': univer['university_name'],
+    return {'id': univer['university_id'],
+            'name': univer['university_name'],
             'financing_type': univer['university_financing_type_name'],
             'address': univer['university_address'],
             'index': univer['post_index_u'],
+            'region': univer['region_name'],
+            'city': univer['koatuu_name'],
             'phone': univer['university_phone'],
             'mail': univer['university_email'],
             'site': univer['university_site'],
