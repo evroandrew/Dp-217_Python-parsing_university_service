@@ -1,12 +1,9 @@
-from json import JSONDecodeError
 import requests
 from data import REGIONS, SPECIALITIES
-
-# That's the template of url / Шаблон url
-# URL_FORMAT = 'univerdata/?region=Миколаївська+область&city=Миколаїв&field=11+Математика+та+статистика&speciality='
-# If some param values are empty (speciality=) - we should process all key data
-# Если по ключу какое-то значение отстутствует (speciality=), подразумеваем,
-# что нужно обработать все значения по данному ключу
+import asyncio
+from aiohttp import ClientSession
+import time
+from bs_parser import get_region_codes, add_specs_to_univer, BASE_URL
 
 EDUCATION_TYPES = {'Університет', 'Академія', 'Інститут'}
 
@@ -30,25 +27,21 @@ def get_universities_by_region(region_code, city):
     return [uni['university_id'] for uni in universities if uni['education_type_name'] in EDUCATION_TYPES]
 
 
-def get_university_data(univer_id):
-    response = requests.get(f'https://registry.edbo.gov.ua/api/university/?id={univer_id}&exp=json')
-    return response.json()
+async def get_university_data(univer_id, session) -> dict:
+    print('before request')
+    async with session.request('get', f'https://registry.edbo.gov.ua/api/university/?id={univer_id}&exp=json') as response:
+        if response.status == 200:
+            print('after request')
+            data = await response.json()
+            return get_univer_info(data)
 
 
 def has_speciality(univer, speciality_code):
-    specialities_id = [speciality['speciality_code'] for speciality in univer['speciality_licenses']]
+    specialities_id = [speciality['speciality_code'] for speciality in univer['educators']]
     return speciality_code in specialities_id
 
 
-def get_speciality_info(univer, speciality_code):
-    '''Returns list of dictionaries with speciality info'''
-    return [{'qualification': speciality['qualification_group_name'],
-             'name': speciality['speciality_name'],
-             'places': speciality['all_count']} for speciality in univer['speciality_licenses']
-            if speciality['speciality_code'] == speciality_code]
-
-
-def get_univer_info_by_speciality(univer, speciality):
+def get_univer_info(univer):
     '''Returns dictionary with info of the university which has provided speciality'''
     return {'id': univer['university_id'],
             'name': univer['university_name'],
@@ -60,41 +53,41 @@ def get_univer_info_by_speciality(univer, speciality):
             'phone': univer['university_phone'],
             'mail': univer['university_email'],
             'site': univer['university_site'],
-            'specialities': get_speciality_info(univer, speciality)}
+            'specialities': [speciality['speciality_code'] for speciality in univer['educators']]}
 
 
-def main(region: str = None, city: str = None, field: int = None, speciality: str = None) -> list:
-    # возвращает код региона, если нет - код всех регионов
+async def parse_universities(region: str = None, city: str = None, field: int = None, speciality: str = None):
     # Contains region code or returns all region codes if param is empty
     region_codes = [REGIONS.get(region) if region else [region_code for region_code in REGIONS.values()]]
 
-    # возвразает ид всех универов, ссылаясь на код региона и город
     # Contains all university IDs. Those IDs depends on region code and city
     univers_ids = [univer_id for code in region_codes for univer_id in get_universities_by_region(code, city)]
 
-    # Возвращает данные универов по их ид (univers_ids)
     # contains university data
-    univers_data = []
-    for item in univers_ids:
-        try:
-            univers_data.append(get_university_data(item))
-        except JSONDecodeError:
-            continue
-
-    # Возвращает специальность, если есть специальность
-    # Возвращает список специальностей, если есть категория (field) и нет специальности
-    # Возвращает коды всех специальностей если не указано ничего
+    async with ClientSession() as session:
+        univers_data = await asyncio.gather(
+            *(get_university_data(uni_id, session) for uni_id in univers_ids)
+        )
     speciality_codes = get_speciality_codes(field, speciality)
 
-    response = []
-    for speciality in speciality_codes:
-        univers_with_speciality = filter(lambda univer: has_speciality(univer, speciality), univers_data)
-        data = [get_univer_info_by_speciality(univer, speciality) for univer in univers_with_speciality]
-        response.extend(data)
+    univers = []
+    for univer in univers_data:
+        for speciality in speciality_codes:
+            if speciality in univer['specialities']:
+                univers.append(univer)
+                break
+    region_codes = get_region_codes(BASE_URL)
+    t = time.time()
+    async with ClientSession() as session:
+        tasks = []
+        for univer in univers:
+            url = BASE_URL + region_codes.get(univer['region']) + univer['id']
+            tasks.append(asyncio.create_task(
+                add_specs_to_univer(session, url, univer, speciality_codes)
+            ))
+        results = await asyncio.gather(*tasks)
 
+        response = [result for result in results if result]
+
+    print(time.time() - t)
     return response
-
-
-if __name__ == '__main__':
-    # Parser check
-    print(main('Одеська область', 'Одеса', 9))

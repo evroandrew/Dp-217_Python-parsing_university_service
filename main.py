@@ -1,15 +1,14 @@
 import re
-from json import JSONDecodeError
 from typing import Optional
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from scripts import main
+from scripts import parse_universities
 
 app = FastAPI(title="UniParser")
 
 
 @app.get("/univerdata/")
-def parse_specialities(region: Optional[str] = None,
+async def parse_specialities(region: Optional[str] = None,
                        city: Optional[str] = None,
                        field: Optional[str] = None,
                        speciality: Optional[str] = None):
@@ -23,7 +22,7 @@ def parse_specialities(region: Optional[str] = None,
 
     print(f"reg {region}, city {city}, field {field}, spec {speciality}")
     try:
-        response = main(region, city, field, speciality)
+        response = await parse_universities(region, city, field, speciality)
         return JSONResponse(response)
     except ValueError as e:
         return e
