@@ -1,14 +1,17 @@
 import re
 from typing import Optional
+
+import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from scripts import parse_universities
+import asyncio
 
 app = FastAPI(title="UniParser")
 
 
 @app.get("/univerdata/")
-async def parse_specialities(region: Optional[str] = None,
+def parse_specialities(region: Optional[str] = None,
                        city: Optional[str] = None,
                        field: Optional[str] = None,
                        speciality: Optional[str] = None):
@@ -22,7 +25,11 @@ async def parse_specialities(region: Optional[str] = None,
 
     print(f"reg {region}, city {city}, field {field}, spec {speciality}")
     try:
-        response = await parse_universities(region, city, field, speciality)
+        response = asyncio.run(parse_universities(region, city, field, speciality))
         return JSONResponse(response)
     except ValueError as e:
         return e
+
+
+if __name__ == '__main__':
+    uvicorn.run(app, port=8080, host='localhost')
