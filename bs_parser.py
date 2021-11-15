@@ -6,7 +6,6 @@ BASE_URL = 'https://vstup.osvita.ua'
 
 async def fetch(session, url):
     async with session.get(url) as response:
-        print('inside await in fetch')
         return await response.text()
 
 
@@ -15,92 +14,94 @@ def get_region_codes(url):
     soup = BeautifulSoup(page.content, 'html.parser')
     select_tag = soup.find('select')
     options = select_tag.find_all('option')
-
     regions_codes = {option.text: option['value'] for option in options}
-
     return regions_codes
 
 
-def is_speciality_box(tag):
-    return tag.get('class') == ['table-of-specs-item']
+def has_speciality(div, specialities):
+    speciality_name = div.find('a').text
+    speciality_code = speciality_name[:3]
+    return speciality_code in specialities
 
 
-def is_open_offer(tag):
-    content = tag.text
-    if len(content) > 30:
-        offer = content.split('\n')[5].split(' ')[2]
-        return offer == 'Відкрита'
+def get_tag_value(div, key):
+    tag = div.find(text=key)
+    if tag:
+        return tag.parent.next.next
 
 
-def get_speciality_name(value):
-    speciality = value.split('\xa0i')[0]
-    if 'Факультет' in speciality:
-        speciality = speciality[0: -9]
-    return speciality.strip()
+def get_speciality_name(div):
+    speciality_tag = div.find('a')
+    if speciality_tag:
+        return speciality_tag.text
 
 
-def get_faculty_name(value):
-    faculty = value.split('Освітня')[0]
-    return faculty.strip()
+def get_points(div):
+    points = div.find_all(class_='stat_old')
+    result = {}
+    if points:
+        for point in points:
+            if 'контракт' in point.text:
+                result['contract_points'] = point.text[-6:]
+            if 'бюджет' in point.text:
+                result['budget_points'] = point.text[-6:]
+    result.setdefault('contract_points', 'Iнформацiя вiдсутня')
+    result.setdefault('budget_points', 'Iнформацiя вiдсутня')
+    return result
 
 
-def get_total_places(element):
-    places = element.split('Обсяг:')
-    total_places = places[0][-2:]
-    return total_places.strip()
+def get_speciality_info(education_form, text, speciality_codes):
 
+    degrees = {' (на основі Повна загальна середня освіта)': 'Бакалавр',
+               ' (на основі Бакалавр)': 'Магiстр'}
 
-def locate_speciality(row):
-    return row[4].split(':')
+    degree_results = education_form.find_all(text=text)
+    divs = (div.parent.parent for div in degree_results)
+    divs_with_specialities = filter(lambda div: has_speciality(div, speciality_codes), divs)
+    specialities = []
+    for div in divs_with_specialities:
+        speciality_info = dict()
+        speciality_info['degree'] = degrees[text]
+        speciality = get_speciality_name(div)
+        speciality_info['name'] = speciality if speciality else 'Iнформацiя вiдсутня'
+        faculty = get_tag_value(div, 'Факультет:')
+        speciality_info['faculty'] = faculty if faculty else 'Iнформацiя вiдсутня'
+        offer = get_tag_value(div, 'Тип пропозиції:')
+        speciality_info['offer'] = offer if offer else 'Iнформацiя вiдсутня'
+        contract = get_tag_value(div, 'Обсяг на контракт:')
+        speciality_info['contract_places'] = contract if contract else 'Iнформацiя вiдсутня'
+        budget = get_tag_value(div, 'Максимальний обсяг держ замовлення')
+        speciality_info['budget_places'] = budget if budget else 'Iнформацiя вiдсутня'
+        points = get_points(div)
+        speciality_info.update(points)
+        specialities.append(speciality_info)
+    return specialities
 
 
 async def parse_specialities(session, url, speciality_codes):
     page = await fetch(session, url)
     soup = BeautifulSoup(page, 'html.parser')
-    divs = soup.find_all('div')
+
+    full_time = soup.find(class_='panel den')
+    part_time = soup.find(class_='panel zaoch')
+
     specialities = []
-    spec_boxes = filter(is_speciality_box, divs)
-    baks = filter(is_open_offer, spec_boxes)
-    splitted = (bak.text.split('\n') for bak in baks)
-    filtered_splitted = filter(lambda part: get_speciality_name(locate_speciality(part)[1])[:3] in speciality_codes, splitted)
 
-    for row in filtered_splitted:
-        speciality = get_speciality_name(locate_speciality(row)[1])
-        faculty = get_faculty_name(locate_speciality(row)[2])
+    for time in (full_time, part_time):
+        bachelor_specialities = get_speciality_info(education_form=time,
+                                                    text=' (на основі Повна загальна середня освіта)',
+                                                    speciality_codes=speciality_codes)
+        master_specialities = get_speciality_info(education_form=time,
+                                                  text=' (на основі Бакалавр)',
+                                                  speciality_codes=speciality_codes)
+        specialities.append(bachelor_specialities + master_specialities)
 
-        speciality_info = {
-            'speciality': speciality,
-            'faculty': faculty,
-            'total_places': 0,
-            'contract_places': 0,
-            'free_places': 0,
-            'contract_points': 'iнформацiя вiдсутня',
-            'free_points': 'iнформацiя вiдсутня'}
-
-        for element in row:
-            if 'Ліцензійний обсяг' in element:
-                speciality_info['total_places'] = get_total_places(element)
-            if 'Максимальний обсяг' in element:
-                free_places = element[-2:]
-                contract_places = int(speciality_info['total_places']) - int(free_places)
-                speciality_info['free_places'] = free_places.strip()
-                speciality_info['contract_places'] = str(contract_places)
-            if 'Середній балЗНО' in element:
-                points = element.split('Середній балЗНО')
-                for point in points:
-                    if 'контракт' in point:
-                        contract_points = point[-7:]
-                        speciality_info['contract_points'] = contract_points.strip()
-                    if 'бюджет' in point:
-                        free_points = point[-7:]
-                        speciality_info['free_points'] = free_points.strip()
-        specialities.append(speciality_info)
-    return specialities
+    full_time, part_time = specialities[0], specialities[1]
+    return {'full_time': full_time, 'part_time': part_time}
 
 
 async def add_specs_to_univer(session, url, univer, specialities):
     specialities = await parse_specialities(session, url, specialities)
     if specialities:
         univer['specialities'] = specialities
-        print(f'parse_specialities response {specialities}')
         return univer
