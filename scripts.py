@@ -28,10 +28,8 @@ def get_universities_by_region(region_code, city):
 
 
 async def get_university_data(univer_id, session) -> dict:
-    print('before request')
     async with session.request('get', f'https://registry.edbo.gov.ua/api/university/?id={univer_id}&exp=json') as response:
         if response.status == 200:
-            print('after request')
             data = await response.json()
             return get_univer_info(data)
 
@@ -68,14 +66,16 @@ async def parse_universities(region: str = None, city: str = None, field: int = 
         univers_data = await asyncio.gather(
             *(get_university_data(uni_id, session) for uni_id in univers_ids)
         )
+    univers_data = filter(None, univers_data)
     speciality_codes = get_speciality_codes(field, speciality)
-
     univers = []
+
     for univer in univers_data:
         for speciality in speciality_codes:
             if speciality in univer['specialities']:
                 univers.append(univer)
                 break
+
     region_codes = get_region_codes(BASE_URL)
     t = time.time()
     async with ClientSession() as session:
@@ -86,8 +86,6 @@ async def parse_universities(region: str = None, city: str = None, field: int = 
                 add_specs_to_univer(session, url, univer, speciality_codes)
             ))
         results = await asyncio.gather(*tasks)
-
         response = [result for result in results if result]
-
     print(time.time() - t)
     return response
