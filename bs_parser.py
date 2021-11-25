@@ -3,6 +3,9 @@ import requests
 
 BASE_URL = 'https://vstup.osvita.ua'
 
+DEGREES = {'Бакалавр': ' (на основі Повна загальна середня освіта)',
+            'Магiстр': ' (на основі Бакалавр)'}
+
 
 async def fetch(session, url):
     async with session.get(url) as response:
@@ -50,18 +53,14 @@ def get_points(div):
     return result
 
 
-def get_speciality_info(education_form, text, speciality_codes):
-
-    degrees = {' (на основі Повна загальна середня освіта)': 'Бакалавр',
-               ' (на основі Бакалавр)': 'Магiстр'}
-
-    degree_results = education_form.find_all(text=text)
+def get_speciality_info(education_form, degree, speciality_codes):
+    degree_results = education_form.find_all(text=DEGREES[degree])
     divs = (div.parent.parent for div in degree_results)
     divs_with_specialities = filter(lambda div: has_speciality(div, speciality_codes), divs)
     specialities = []
     for div in divs_with_specialities:
         speciality_info = dict()
-        speciality_info['degree'] = degrees[text]
+        speciality_info['degree'] = degree
         speciality = get_speciality_name(div)
         speciality_info['name'] = speciality if speciality else 'Iнформацiя вiдсутня'
         faculty = get_tag_value(div, 'Факультет:')
@@ -71,7 +70,7 @@ def get_speciality_info(education_form, text, speciality_codes):
         contract = get_tag_value(div, 'Обсяг на контракт:')
         speciality_info['contract_places'] = contract if contract else 'Iнформацiя вiдсутня'
         budget = get_tag_value(div, 'Максимальний обсяг держ замовлення')
-        speciality_info['budget_places'] = budget if budget else 'Iнформацiя вiдсутня'
+        speciality_info['budget_places'] = budget[1:] if budget else 'Iнформацiя вiдсутня'
         points = get_points(div)
         speciality_info.update(points)
         specialities.append(speciality_info)
@@ -85,19 +84,29 @@ async def parse_specialities(session, url, speciality_codes):
     full_time = soup.find(class_='panel den')
     part_time = soup.find(class_='panel zaoch')
 
-    specialities = []
-
-    for time in (full_time, part_time):
-        bachelor_specialities = get_speciality_info(education_form=time,
-                                                    text=' (на основі Повна загальна середня освіта)',
+    if full_time:
+        bachelor_specialities = get_speciality_info(education_form=full_time,
+                                                    degree='Бакалавр',
                                                     speciality_codes=speciality_codes)
-        master_specialities = get_speciality_info(education_form=time,
-                                                  text=' (на основі Бакалавр)',
+        master_specialities = get_speciality_info(education_form=full_time,
+                                                  degree='Магiстр',
                                                   speciality_codes=speciality_codes)
-        specialities.append(bachelor_specialities + master_specialities)
+        full_time_specs = bachelor_specialities + master_specialities
+    else:
+        full_time_specs = None
 
-    full_time, part_time = specialities[0], specialities[1]
-    return {'full_time': full_time, 'part_time': part_time}
+    if part_time:
+        bachelor_specialities = get_speciality_info(education_form=part_time,
+                                                    degree='Бакалавр',
+                                                    speciality_codes=speciality_codes)
+        master_specialities = get_speciality_info(education_form=part_time,
+                                                  degree='Магiстр',
+                                                  speciality_codes=speciality_codes)
+        part_time_specs = bachelor_specialities + master_specialities
+    else:
+        part_time_specs = None
+
+    return {'full_time': full_time_specs, 'part_time': part_time_specs}
 
 
 async def add_specs_to_univer(session, url, univer, specialities):

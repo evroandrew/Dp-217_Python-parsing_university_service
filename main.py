@@ -1,17 +1,16 @@
 import re
-from typing import Optional
+from typing import Optional, List, Dict
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from scripts import parse_universities
-import asyncio
+from scripts import parse_universities, get_brief_univers_data
 
 app = FastAPI(title="UniParser")
 
 
 @app.get("/univerdata/")
-def parse_specialities(region: Optional[str] = None,
+async def parse_specialities(region: Optional[str] = None,
                        city: Optional[str] = None,
                        field: Optional[str] = None,
                        speciality: Optional[str] = None):
@@ -23,13 +22,22 @@ def parse_specialities(region: Optional[str] = None,
         if re.match("([0-9]+)", speciality) is not None:
             speciality = re.match("([0-9]+)", speciality).group(0)
 
-    print(f"reg {region}, city {city}, field {field}, spec {speciality}")
     try:
-        response = asyncio.run(parse_universities(region, city, field, speciality))
+        response = await parse_universities(region, city, field, speciality)
         return JSONResponse(response)
     except ValueError as e:
         return e
 
 
+@app.post("/favourites/")
+async def parse_favs(request: Request):
+    data = await request.json()
+    univers = data.get('univers')
+    response = await get_brief_univers_data(univers)
+    return JSONResponse(response)
+
+
 if __name__ == '__main__':
     uvicorn.run(app, port=8080, host='localhost')
+
+# uvicorn main:app --reload

@@ -54,6 +54,15 @@ def get_univer_info(univer):
             'specialities': [speciality['speciality_code'] for speciality in univer['educators']]}
 
 
+async def get_brief_univers_data(univers_ids):
+    async with ClientSession() as session:
+            univers_data = await asyncio.gather(
+                *(get_university_data(uni_id, session) for uni_id in univers_ids)
+            )
+    univers_data = list(filter(None, univers_data))
+    return univers_data
+
+
 async def parse_universities(region: str = None, city: str = None, field: int = None, speciality: str = None):
     # Contains region code or returns all region codes if param is empty
     region_codes = [REGIONS.get(region) if region else [region_code for region_code in REGIONS.values()]]
@@ -61,12 +70,8 @@ async def parse_universities(region: str = None, city: str = None, field: int = 
     # Contains all university IDs. Those IDs depends on region code and city
     univers_ids = [univer_id for code in region_codes for univer_id in get_universities_by_region(code, city)]
 
-    # contains university data
-    async with ClientSession() as session:
-        univers_data = await asyncio.gather(
-            *(get_university_data(uni_id, session) for uni_id in univers_ids)
-        )
-    univers_data = filter(None, univers_data)
+    univers_data = await get_brief_univers_data(univers_ids)
+
     speciality_codes = get_speciality_codes(field, speciality)
     univers = []
 
