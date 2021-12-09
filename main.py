@@ -1,4 +1,5 @@
 import re
+import os
 from typing import Optional, List, Dict
 
 import uvicorn
@@ -38,6 +39,6 @@ async def parse_favs(request: Request):
 
 
 if __name__ == '__main__':
-    uvicorn.run(app, port=8080, host='localhost')
+    uvicorn.run(app, port=os.environ.get('PORT', 8080), host='localhost')
 
 # uvicorn main:app --reload
